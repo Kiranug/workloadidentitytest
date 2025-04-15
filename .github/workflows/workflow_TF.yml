@@ -22,13 +22,14 @@ env:
   ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
   ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
   ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  BACKEND_RG: ${{ secrets.TFSTATE_RESOURCE_GROUP }}         # Example: tfstate-rg
-  BACKEND_STORAGE: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}   # Example: tfstateglobal
-  BACKEND_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}        # Example: tfstate
+  BACKEND_RG: ${{ secrets.TFSTATE_RESOURCE_GROUP }}
+  BACKEND_STORAGE: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
+  BACKEND_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
   ARM_USE_OIDC: true
 
 jobs:
-  terraform:
+  terraform-plan:
+    name: Terraform Plan
     runs-on: ubuntu-latest
 
     steps:
@@ -48,7 +49,6 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init with Shared Backend
-      
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ env.BACKEND_RG }}" \
@@ -62,6 +62,71 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -var-file=${{ github.event.inputs.environment }}.tfvars
 
+      - name: Terraform Show Cost (Optional, requires cost estimation setup)
+        run: terraform show -json | jq '.' || echo "Terraform cost view is optional"
+
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: github.event.inputs.environment == github.event.inputs.environment
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login with OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ env.ARM_CLIENT_ID }}
+          tenant-id: ${{ env.ARM_TENANT_ID }}
+          subscription-id: ${{ env.ARM_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init with Shared Backend
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ env.BACKEND_RG }}" \
+            -backend-config="storage_account_name=${{ env.BACKEND_STORAGE }}" \
+            -backend-config="container_name=${{ env.BACKEND_CONTAINER }}" \
+            -backend-config="key=terraform.${{ github.event.inputs.environment }}.tfstate"
+
       - name: Terraform Apply
-        if: github.event.inputs.environment == github.event.inputs.environment
         run: terraform apply -var-file=${{ github.event.inputs.environment }}.tfvars -auto-approve
+
+  terraform-destroy:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == github.event.inputs.environment
+    needs: terraform-apply
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login with OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ env.ARM_CLIENT_ID }}
+          tenant-id: ${{ env.ARM_TENANT_ID }}
+          subscription-id: ${{ env.ARM_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init with Shared Backend
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ env.BACKEND_RG }}" \
+            -backend-config="storage_account_name=${{ env.BACKEND_STORAGE }}" \
+            -backend-config="container_name=${{ env.BACKEND_CONTAINER }}" \
+            -backend-config="key=terraform.${{ github.event.inputs.environment }}.tfstate"
+
+      - name: Terraform Destroy
+        run: terraform destroy -var-file=${{ github.event.inputs.environment }}.tfvars -auto-approve
