@@ -27,12 +27,10 @@ jobs:
         include:
           - env: dev
             tfvars: dev.tfvars
-            storage_account: "tfstatedev"
-            resource_group: "tfstate-rg-dev"
+            resource_group: "tfstate-rg"
           - env: prod
             tfvars: prod.tfvars
-            storage_account: "tfstateprod"
-            resource_group: "tfstate-rg-prod"
+            resource_group: "tfstate-rg"
     steps:
       - uses: actions/checkout@v3
       
@@ -47,15 +45,18 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run az command
+        run: az group list
           
       - name: Terraform Init
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ matrix.resource_group }}" \
-            -backend-config="storage_account_name=${{ matrix.storage_account }}" \
+            -backend-config="storage_account_name=tfstateglobal" \
             -backend-config="container_name=tfstate" \
-            -backend-config="key=terraform.tfstate"
-        
+            -backend-config="key=terraform.${{ matrix.env }}.tfstate"
+            
       - name: Terraform Validate
         run: terraform validate
         
