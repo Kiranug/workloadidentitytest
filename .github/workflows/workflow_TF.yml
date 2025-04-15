@@ -25,6 +25,7 @@ env:
   BACKEND_RG: ${{ secrets.TFSTATE_RESOURCE_GROUP }}         # Example: tfstate-rg
   BACKEND_STORAGE: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}   # Example: tfstateglobal
   BACKEND_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}        # Example: tfstate
+  ARM_USE_OIDC: true
 
 jobs:
   terraform:
@@ -47,6 +48,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init with Shared Backend
+      
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ env.BACKEND_RG }}" \
