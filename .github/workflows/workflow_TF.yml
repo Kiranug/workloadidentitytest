@@ -40,9 +40,10 @@ jobs:
 
   terraform-plan:
     name: Terraform Plan
-    if: ${{ github.event.inputs.action == 'plan' }}
+    if: ${{ github.event.inputs.action == 'plan' || github.event.inputs.action == 'apply' }}
     runs-on: ubuntu-latest
-
+    outputs:
+      env: ${{ github.event.inputs.environment }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -59,7 +60,7 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Init with Shared Backend
+      - name: Terraform Init
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ env.BACKEND_RG }}" \
@@ -74,9 +75,11 @@ jobs:
         run: terraform plan -var-file=${{ github.event.inputs.environment }}.tfvars
 
   terraform-apply:
-    name: Terraform Apply
+    name: Terraform Apply (with Approval)
     if: ${{ github.event.inputs.action == 'apply' }}
+    needs: terraform-plan
     runs-on: ubuntu-latest
+    environment: prod-approval
 
     steps:
       - name: Checkout code
@@ -94,7 +97,7 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Init with Shared Backend
+      - name: Terraform Init
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ env.BACKEND_RG }}" \
@@ -109,6 +112,7 @@ jobs:
     name: Terraform Destroy
     if: ${{ github.event.inputs.action == 'destroy' }}
     runs-on: ubuntu-latest
+    environment: prod-approval
 
     steps:
       - name: Checkout code
@@ -126,7 +130,7 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Init with Shared Backend
+      - name: Terraform Init
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ env.BACKEND_RG }}" \
