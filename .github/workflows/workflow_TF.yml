@@ -109,10 +109,10 @@ jobs:
         run: terraform apply -var-file=${{ github.event.inputs.environment }}.tfvars -auto-approve
 
   terraform-destroy:
-    name: Terraform Destroy
-    if: ${{ github.event.inputs.action == 'destroy' }}
+    if: github.event.inputs.action_type == 'destroy'
+    environment:
+      name: destroy-approval
     runs-on: ubuntu-latest
-    environment: prod-approval
 
     steps:
       - name: Checkout code
